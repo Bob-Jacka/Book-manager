@@ -1,4 +1,0 @@
-Весь проект:
-3. Добавить синглтоны для объектов
-4. Возможно интеграция с другим проектом - TelegramBot
-6. Add support for different e-book manufacturers, like onyx or pocket book

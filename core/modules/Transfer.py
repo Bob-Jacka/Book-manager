@@ -1,4 +1,3 @@
-import abc
 import datetime
 import os
 import platform
@@ -253,29 +252,6 @@ class Book_dir_controller:
         for dir in self.dirs:
             for _ in dir.get_book_names():
                 counter += 1
-
-
-class Connect_device(abc.ABC):
-    """
-    Abstract class for support of connected devices.
-    Implement Class for your device to use.
-    """
-
-    @abc.abstractmethod
-    def connect(self):
-        pass
-
-    @abc.abstractmethod
-    def get_path(self):
-        pass
-
-    @abc.abstractmethod
-    def generate_tmp_dir(self):
-        pass
-
-    @abc.abstractmethod
-    def close_connection(self):
-        pass
 
 
 class Transfer(Module):

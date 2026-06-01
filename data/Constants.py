@@ -43,6 +43,6 @@ STATIC_READ_FILE_NAME: Final[str] = 'read.txt'
 
 STATIC_DIR_NAME_FOR_FAV: Final[str] = 'прочитанные'
 
-APP_VERSION: Final[str] = '5.2.0'
+APP_VERSION: Final[str] = '6.2.0'
 
 SITE_WITH_COVERS: Final[str] = 'https://book-cover.ru/covers'
