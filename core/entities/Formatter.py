@@ -57,12 +57,3 @@ class Format:
     @staticmethod
     def prLightGray(string: str):
         print("\033[97m {}\033[00m".format(string))
-
-    @staticmethod
-    def print_table(string: str):
-        """
-        Print given string in table view
-        :param string: given string to print
-        :return: None
-        """
-        pass

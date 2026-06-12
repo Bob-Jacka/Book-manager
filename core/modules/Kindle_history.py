@@ -3,174 +3,26 @@ Kindle history module
 
 Responsible for local storage of history (on e-book device) and on remote targets
 """
-import datetime
-import os
-from enum import Enum
-from typing import (
-    Literal,
-    Any
-)
 
-import yadisk
+import os
 
 from core.entities.AbstractModule import Module
 from core.entities.Book_data import Book_data
-from data.Tokens import TOKEN_YANDEX
 from data.Wrappers import log
-
-
-class Memorize:
-    """
-    This module is responsible for storing history in different data storages.
-    For example in Yandex Drive or Google Drive and maybe in local storage;
-
-    Decentralized storage
-
-    You can say that this functionality might be in Kindle history module, but I say No
-    """
-
-    def __init__(self, app_config, logger):
-        self.config = app_config
-        self.local_logger = logger
-
-    # Data getters
-    @log
-    def __get_with_yandex(self, book):
-        client = yadisk.Client(token=TOKEN_YANDEX)
-        with client:
-            pass
-
-    @log
-    def __get_with_google(self, book):
-        pass
-
-    @log
-    def __get_local(self, book):
-        pass
-
-    # Data setters
-    @log
-    def __add_with_yandex(self, book) -> bool:
-        client = yadisk.Client(token=TOKEN_YANDEX)
-        with client:
-            return True
-
-    @log
-    def __add_with_google(self, book) -> bool:
-        pass
-
-    @log
-    def __add_local(self, book) -> bool:
-        try:
-            with open(self.config.path_to_read_file(), 'a+') as file_to_write:
-                file_to_write.write(str(book.get_book_name()) + ' | ')
-                file_to_write.write(str(book.get_book_author()) + ' | ')
-                file_to_write.write(str(datetime.datetime.now().year) + ' | ')
-                file_to_write.write(str(book.get_book_type()))
-                file_to_write.write('\n')
-                return True
-        except Exception as e:
-            self.local_logger.log(f'Exception while adding new book - {e}')
-            return False
-
-    # Find methods
-
-    @log
-    def __find_yandex(self, book_to_find) -> bool | None:
-        pass
-
-    @log
-    def __find_google(self, book_to_find) -> bool | None:
-        pass
-
-    @log
-    def __find_local(self, book_to_find) -> bool | None:
-        while True:
-            if book_to_find != '' and book_to_find is not None:
-                with open(self.config.path_to_read_file()) as read_file:
-                    for book in read_file:  # linear search
-                        if book.find(book_to_find):
-                            self.local_logger.log('Book found')
-                            return True
-                        else:
-                            self.local_logger.log('Book not found')
-                            return False
-            self.local_logger.log('Error occurred, book maybe equals to None')
-            break  # exit loop if book found or not
-
-    # Main entry points
-
-    @log
-    def get(self, book: Book_data, mode: Literal['all', 'google', 'yandex', 'only-local']):
-        getter: Any = None
-        match mode:
-            case 'all':
-                getter = self.__get_local, self.__add_with_google, self.__add_with_yandex
-            case 'google':
-                getter = self.__get_with_google
-            case 'yandex':
-                getter = self.__get_with_yandex
-            case 'only-local':
-                getter = self.__get_local
-            case _:
-                self.local_logger.log(f'Got unknown parameter - {mode}')
-                raise Exception('Unknown mode')
-        getter(book)
-
-    @log
-    def add(self, book: Book_data, mode: Literal['all', 'google', 'yandex', 'only-local']) -> bool:
-        storage: Any = None
-        match mode:
-            case 'all':
-                storage = self.__add_local, self.__add_with_google, self.__add_with_yandex
-            case 'google':
-                storage = self.__add_with_google
-            case 'yandex':
-                storage = self.__add_with_yandex
-            case 'only-local':
-                storage = self.__add_local
-            case _:
-                self.local_logger.log(f'Got unknown parameter - {mode}')
-                raise Exception('Unknown mode')
-        return storage(book)
-
-    @log
-    def find(self, book: Book_data, mode: Literal['all', 'google', 'yandex', 'only-local']):
-        finder: Any = None
-        match mode:
-            case 'all':
-                finder = self.__find_local, self.__find_google, self.__find_yandex
-            case 'google':
-                finder = self.__find_google
-            case 'yandex':
-                finder = self.__find_yandex
-            case 'only-local':
-                finder = self.__find_local
-            case _:
-                raise Exception('Unknown mode')
-        return finder(book)
-
-
-class book_type(Enum):
-    Text = 'Text'
-    Audio = 'Audio'
 
 
 class Kindle_history(Module):
 
-    def __init__(self, cli_parameters: list[str]):
+    def __init__(self):
         self.config = None
         self.local_logger = None
-        self.memorize_module = None
         self.readFile = None
-        self.parameters = cli_parameters
 
     @log
     def post_init(self, app_config):
         self.config = app_config
         self.local_logger = app_config.get_logger()
         self.readFile = app_config.get_read_file_name()
-        self.memorize_module = Memorize(app_config=app_config, logger=self.local_logger)
 
     def __parse_line(self, line: str) -> dict[str, str]:
         """

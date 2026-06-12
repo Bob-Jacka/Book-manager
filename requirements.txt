@@ -5,3 +5,5 @@ yadisk
 langchain
 aiohttp
 requests
+google-api-python-client
+google-auth-oauthlib

@@ -5,10 +5,10 @@ from pathlib import Path
 from typing import Final
 
 from core.entities.BotLogger import BotLogger
-from data.Constants import INPUT_SYM, STATIC_DIR_NAME_FOR_FAV
+from data.Constants import INPUT_SYM, STATIC_DIR_NAME_FOR_FAV, OSType
 
 
-class Config_param_names(Enum):
+class Config_param_names(str, Enum):
     """
     Enum class with config names to proceed
     """
@@ -17,6 +17,7 @@ class Config_param_names(Enum):
     ENABLE_LOGS = 'is_enable_logs'
     EXCLUDE_DIRS = 'exclude_directories'
     CENTRAL_DIR = 'central_dir'
+    VIRTUAL_DEVICES = 'is_virtual'
 
 
 class SingletonMeta(type):
@@ -73,7 +74,10 @@ class App_config(metaclass=SingletonMeta):
     pointer to current working directory of the application
     """
 
-    __is_multithread: bool
+    __is_virtual: bool
+    """
+    Use virtual devices also
+    """
 
     __global_logger: Final[BotLogger] = BotLogger()
     """
@@ -82,10 +86,10 @@ class App_config(metaclass=SingletonMeta):
     """
 
     def __init__(self, run_os: str, read_book_file_name: str = 'read.txt', config_file_name: str = 'config.txt',
-                 is_auto: bool = True, is_logs: bool = False, is_multithread: bool = False, exclude_dirs: list = None):
+                 is_auto: bool = True, is_logs: bool = False, is_virtual: bool = False, exclude_dirs: list = None):
         # Main config parameters:
         self.__run_os = run_os
-        self.__central_dir = self.path_to_dir_with_app()  # get current directory
+        self.__central_dir = self.path_to_dir_with_app()  # get current directory #TODO change
         self.__current_dir = self.__central_dir
 
         # Other config parameters:
@@ -93,7 +97,7 @@ class App_config(metaclass=SingletonMeta):
         self.__config_name = config_file_name
         self.__is_auto_mode = is_auto  # also used for interactive or not mode
         self.__is_enable_logs = is_logs  # turn off if you want to disable logs
-        self.__is_multithread = is_multithread
+        self.__is_virtual = is_virtual
         self.__exclude_directories = exclude_dirs
 
     def get_help_config(self) -> None:
@@ -145,6 +149,8 @@ class App_config(metaclass=SingletonMeta):
                             self.__is_enable_logs = bool(value)
                         elif name == Config_param_names.AUTO_MODE.value:
                             self.__is_auto_mode = bool(value)
+                        elif name == Config_param_names.VIRTUAL_DEVICES:
+                            self.__is_virtual = bool(value)
                         elif name == Config_param_names.EXCLUDE_DIRS.value:
                             if value == 'None':
                                 self.__exclude_directories = list()
@@ -160,25 +166,25 @@ class App_config(metaclass=SingletonMeta):
             else:
                 raise Exception('Exception in checking lines')
 
-    def get_read_file_name(self):
+    def get_read_file_name(self) -> str:
         if self.__read_book_file is not None:
             return self.__read_book_file
         else:
             raise Exception('Try to get null value, failed')
 
-    def get_config_file_name(self):
+    def get_config_file_name(self) -> str:
         if self.__config_name is not None:
             return self.__config_name
         else:
             raise Exception('Try to get null value')
 
-    def get_is_auto_mode(self):
+    def get_is_auto_mode(self) -> bool:
         if self.__is_auto_mode is not None:
             return self.__is_auto_mode
         else:
             raise Exception('Try to get null value')
 
-    def get_is_global_enable_log(self):
+    def get_is_global_enable_log(self) -> bool:
         """
         Return bool value is global logs enabled
         :return:
@@ -188,27 +194,27 @@ class App_config(metaclass=SingletonMeta):
         else:
             raise Exception('Try to get null value')
 
-    def get_exclude_dirs(self):
+    def get_exclude_dirs(self) -> list[str]:
         if self.__exclude_directories is not None:
             return self.__exclude_directories
         else:
             raise Exception('Try to get null value')
 
-    def get_central_dir_name(self):
+    def get_central_dir_name(self) -> str:
         if self.__central_dir is not None:
             return self.__central_dir
         else:
             raise Exception('Central directory path is None')
 
-    def get_current_dir_name(self):
+    def get_current_dir_name(self) -> str:
         if self.__current_dir is not None:
             return self.__current_dir
         else:
-            raise Exception('File with read books is not initialized')
+            raise Exception('Current directory is unknown')
 
-    def is_multithreaded_app_mode(self):
-        if self.__is_multithread is not None:
-            return self.__is_multithread
+    def is_init_virtual(self) -> bool:
+        if self.__is_virtual is not None:
+            return self.__is_virtual
         else:
             raise Exception('Multithread mode is None')
 
@@ -251,6 +257,16 @@ class App_config(metaclass=SingletonMeta):
 
     def path_to_stored_books(self):
         return self.path_to_dir_with_app() + STATIC_DIR_NAME_FOR_FAV
+
+    def get_device_search_path(self) -> str | None:
+        if self.__run_os == OSType.linux_os:
+            return '/run/media/'
+        elif self.__run_os == OSType.windows_os:
+            return ''
+        return None
+
+    def get_run_os(self) -> str:
+        return self.__run_os
 
 
 class App_config_builder:

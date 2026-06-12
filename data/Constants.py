@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Final
 
 BOOK_EXTENSIONS: Final[list[str]] = ['lrf', 'rar', 'zip', 'rtf', 'lit', 'txt', 'txtz', 'text', 'htm', 'xhtm',
@@ -43,6 +44,15 @@ STATIC_READ_FILE_NAME: Final[str] = 'read.txt'
 
 STATIC_DIR_NAME_FOR_FAV: Final[str] = 'прочитанные'
 
-APP_VERSION: Final[str] = '6.2.0'
+APP_VERSION: Final[str] = '7.2.0'
 
 SITE_WITH_COVERS: Final[str] = 'https://book-cover.ru/covers'
+
+
+class OSType(str, Enum):
+    """
+    Enum with os identifiers that allowed in utility
+    """
+    windows_os = 'windows',
+    linux_os = 'linux',
+    mac_os = 'mac_os'
