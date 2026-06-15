@@ -48,6 +48,10 @@ APP_VERSION: Final[str] = '7.2.0'
 
 SITE_WITH_COVERS: Final[str] = 'https://book-cover.ru/covers'
 
+# Paths for devices:
+VIRTUAL_START_PATH: Final[str] = '/books'  # path from yandex disk root
+PHYSICAL_START_PATH: Final[str] = ''
+
 
 class OSType(str, Enum):
     """

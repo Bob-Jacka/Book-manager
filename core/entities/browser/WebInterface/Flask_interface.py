@@ -1,7 +1,6 @@
 """
 Flask driven web engine
 """
-import warnings
 from time import sleep
 
 from flask import (
@@ -82,7 +81,7 @@ def add_book_page():
         Dp.history_mod.add_book_to_history(book)
         Dp.local_logger.log(f'Added book data - {book}')
 
-        sleep(1)
+        sleep(1)  # make user feel comfortable, sleep for 1 sec to guarantee work illusion
         return redirect(url_for('root_page'))
     return render_template('add_book.html')
 
@@ -100,7 +99,7 @@ def remove_book_page():
     if request.method == 'POST':
         title = request.form['title']  # required parameter
 
-        sleep(1)  # sleep
+        sleep(1)  # make user feel comfortable, sleep for 1 sec to guarantee work illusion
         return redirect(url_for('root_page'))
     return render_template('remove_book.html')
 

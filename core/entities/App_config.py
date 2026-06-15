@@ -86,7 +86,7 @@ class App_config(metaclass=SingletonMeta):
     """
 
     def __init__(self, run_os: str, read_book_file_name: str = 'read.txt', config_file_name: str = 'config.txt',
-                 is_auto: bool = True, is_logs: bool = False, is_virtual: bool = False, exclude_dirs: list = None):
+                 is_auto: bool = True, is_logs: bool = False, is_virtual: bool = True, exclude_dirs: list = None):
         # Main config parameters:
         self.__run_os = run_os
         self.__central_dir = self.path_to_dir_with_app()  # get current directory #TODO change

@@ -1,17 +1,14 @@
-""""
-Entry point to utility and modules, contains global data from modules
-"""
-
 from core.entities.browser.Web_module import Web_interface
 from core.modules.Book_analytic import Book_analytic
 from core.modules.Kindle_history import Kindle_history
-from data.Constants import (
-    APP_NAME
-)
+from data.Constants import APP_NAME
 from data.Wrappers import log
 
 
 class BootLoader:
+    """
+    Get ready all app entities in one entity
+    """
 
     def __init__(self, app_config, logger):
         self.app_config = app_config
@@ -39,8 +36,7 @@ class BootLoader:
         try:
             webinterface = Web_interface(logger=self.local_logger,
                                          stat_module=self.analytic_module,
-                                         history_module=self.history_module,
-                                         transfer_module=self.transfer_module)
+                                         history_module=self.history_module)
             webinterface.run_interface()
         except Exception as e:
             self.local_logger.log(f'Run browser app failed - {e}')

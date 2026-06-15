@@ -9,7 +9,7 @@ class LW_process:
     __pid: int
     __process: Process
 
-    def __init__(self, name: str, target):
+    def __init__(self, name: str, target, *args):
         self.__process_name = name
         self.__process = Process(target=target)
         self.__pid = self.__process.pid

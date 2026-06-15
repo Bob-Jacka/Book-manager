@@ -1,10 +1,9 @@
 import abc
-import datetime
 import os
 import re
 import shutil
 from pathlib import Path
-from typing import Any
+from typing import Any, override, Literal
 
 import yadisk
 from google.oauth2 import service_account
@@ -17,11 +16,68 @@ from core.entities.Translator import Translator
 from core.other.Utils import str_input_from_user
 from data.Constants import (
     STATIC_READ_FILE_NAME,
-    NON_BOOK_EXTENSIONS,
-    OSType
+    OSType,
+    VIRTUAL_START_PATH,
+    NON_BOOK_EXTENSIONS
 )
 from data.Tokens import TOKEN_YANDEX, TOKEN_GOOGLE
 from data.Wrappers import log
+
+
+class IBookable(abc.ABC):
+    """
+    Interface for book actions
+    """
+
+    # book specific methods: TODO maybe create another interface for this
+
+    @abc.abstractmethod
+    def rename_book(self, old_name: str, new_name: str) -> None:
+        pass
+
+    @abc.abstractmethod
+    def remove_book(self, book_name: str) -> bool | None:
+        """
+        Remove book from device's storage
+        """
+        pass
+
+    @abc.abstractmethod
+    def download_book(self, book_name: str) -> None:
+        """
+        Download book from storage into host
+        """
+        pass
+
+    @abc.abstractmethod
+    def add_new_book(self, file_to_add: str, book: Book_data) -> bool | None:
+        """
+        Add new book into device's storage
+        """
+        pass
+
+    @abc.abstractmethod
+    def list_all_books(self) -> list[str]:
+        """
+        List all books that stored in device
+        """
+        pass
+
+    @staticmethod
+    def is_book(name: str) -> bool:
+        """
+        Function for filtering directory for books
+        :param name: name of the file to proceed
+        :return: bool value, if name ended with 'book' extensions.
+        """
+        ext = os.path.splitext(name)[1]
+        if not ext:
+            return False
+        ext = ext[1:].lower()
+        bad_ext_pat = re.compile(r'[^a-z0-9_]+')
+        if ext in NON_BOOK_EXTENSIONS or bad_ext_pat.search(ext) is not None:
+            return False
+        return True
 
 
 class IDevice(abc.ABC):
@@ -30,24 +86,91 @@ class IDevice(abc.ABC):
     Implement Class for your device to use.
     """
 
+    is_initialized: bool = False
+    device_name: str = ''
+    start_path: str
+
+    # device specific methods:
     @abc.abstractmethod
-    def init_device(self, current_dir) -> None:
+    def init_device(self, current_dir: str | Path) -> None:
         pass
 
     @abc.abstractmethod
-    def get_path(self):
+    def close_connection(self) -> None:
+        """
+        Close device connection
+        """
         pass
 
     @abc.abstractmethod
-    def close_connection(self):
+    def start_device(self) -> None:
+        """
+        Start device and all of it actions
+        """
+        pass
+
+    def get_home_dir_path(self) -> str | None:
+        """
+        Get path where device is suited
+        """
+        return self.start_path
+
+    @abc.abstractmethod
+    def get_device_info(self) -> None:
+        """
+        Print device info into console
+        """
+        pass
+
+    def get_start_path(self):
+        """
+        Get start for device (I.e home directory where to start working)
+        """
+        return self.start_path
+
+    def is_initialized_device(self) -> bool:
+        """
+        Simple getter for initialized state
+        """
+        return self.is_initialized
+
+
+class IClient(abc.ABC):
+    """
+    Interface for clients in virtual devices
+    """
+
+    home_path: str
+    """
+    Central directory
+    """
+
+    @abc.abstractmethod
+    def init_connection(self) -> None:
         pass
 
     @abc.abstractmethod
-    def start_device(self):
+    def close_connection(self) -> None:
+        pass
+
+    @abc.abstractmethod
+    def check_path(self, path_to_check: str) -> bool | None:
+        pass
+
+    @abc.abstractmethod
+    def check_client(self) -> None:
+        pass
+
+    @abc.abstractmethod
+    def exist(self, path) -> bool | None:
+        pass
+
+    @abc.abstractmethod
+    def upload_book(self) -> None:
         pass
 
 
-class Physical_device(IDevice):
+class Physical_device(IDevice, IBookable):
     """
     Physically connected via usb device.
     Ex. your Kindle book or your Digma (not Figma) book
@@ -104,7 +227,6 @@ class Physical_device(IDevice):
         @log
         def add_new_book(self, book: Book_data) -> None:
             """
-            Add new book for auto processing.
             :param book: book object to add
             :return: None
             """
@@ -262,6 +384,7 @@ class Physical_device(IDevice):
             last modified if that isn't possible.
             See http://stackoverflow.com/a/39501288/1709587 for explanation.
             """
+            import datetime
             os_name: str = self.config.get_run_os()
 
             # Windows branch:
@@ -278,22 +401,6 @@ class Physical_device(IDevice):
                     return str(datetime.datetime.now())
             else:
                 raise NotImplemented('It seems that you have Mac operating system, not implemented for this system')
-
-        @staticmethod
-        def is_book(name: str) -> bool:
-            """
-            Function for filtering directory for books
-            :param name: name of the file to proceed
-            :return: bool value, if name ended with 'book' extensions.
-            """
-            ext = os.path.splitext(name)[1]
-            if not ext:
-                return False
-            ext = ext[1:].lower()
-            bad_ext_pat = re.compile(r'[^a-z0-9_]+')
-            if ext in NON_BOOK_EXTENSIONS or bad_ext_pat.search(ext) is not None:
-                return False
-            return True
 
         def check_for_not_started(self):
             """
@@ -315,23 +422,51 @@ class Physical_device(IDevice):
                 for _ in dir.get_book_names():
                     counter += 1
 
+    # Physical device entities:
     __local_device_logger: BotLogger = None
     __translator: Translator = None
     __book_dir_controller: Book_dir_controller
     __home_directory: str | Path
 
-    def __init__(self, device_path: str | Path, config):
+    def __init__(self, device_path: str | Path, config, device_name: str):
         self.__home_directory = device_path
         self.__init_device_entities()
         self.config = config
+        self.device_name = device_name
         self.__book_dir_controller = self.Book_dir_controller(config)
 
-    def get_path(self) -> str | Path:
+    @override
+    def get_device_info(self) -> None:
+        pass
+
+    @override
+    def get_home_dir_path(self) -> str | Path:
         """
         Get device path in system
         """
         return self.__home_directory
 
+    @override
+    def rename_book(self, old_name: str, new_name: str) -> None:
+        pass
+
+    @override
+    def remove_book(self, book_name: str) -> bool:
+        pass
+
+    @override
+    def download_book(self, book_name: str):
+        pass
+
+    @override
+    def add_new_book(self, path, book: Book_data) -> bool:
+        pass
+
+    @override
+    def list_all_books(self) -> list[str]:
+        pass
+
+    @override
     def init_device(self, current_dir) -> None:
         """
         Initialize some useful application variables.
@@ -346,6 +481,7 @@ class Physical_device(IDevice):
             else:
                 self.__local_device_logger.log('Read books file not found')
             self.__local_device_logger.log('App initialized in manual mode')
+            self.is_initialized = True
         except Exception as e:
             raise Exception(f'Init device failed due to {e}.')
 
@@ -356,50 +492,234 @@ class Physical_device(IDevice):
         except Exception as e:
             raise Exception(f'App initialization failed due to {e}.')
 
+    @override
     def start_device(self):
+        try:
+            pass
+        except Exception as e:
+            raise Exception(f'Start device functionality failed due to - {e}.')
+
+    @override
+    def close_connection(self):
+        """
+        Delete device entities in case of error or finish
+        :return: None
+        """
         try:
             pass
 
         except Exception as e:
             raise Exception(f'Start device functionality failed due to - {e}.')
 
-    def close_connection(self):
-        """
-        Delete device entities in case of error or finish
-        :return: None
-        """
+
+class Client(IBookable, IClient):
+    """
+    Client Abstraction
+    """
+
+    __type: Literal['yandex', 'google']
+    __underlying_client: Any
+
+    def __init__(self, client_type: Literal['yandex', 'google'], client_home_path: str):
+        self.__type = client_type
+        self.client_home_path = client_home_path
+        if self.__type == 'yandex':
+            if self.__underlying_client.exists(VIRTUAL_START_PATH):
+                self.client_home_path = VIRTUAL_START_PATH
+            else:
+                self.__underlying_client.mkdir(VIRTUAL_START_PATH)
+                self.client_home_path = VIRTUAL_START_PATH
+
+        elif self.__type == 'google':
+            raise NotImplemented('Implement functionality first')
+        else:
+            raise NotImplemented('Implement functionality first')
+
+    @override
+    def check_client(self):
+        if self.__type == 'yandex':
+            with self.__underlying_client as client:
+                pass
+        elif self.__type == 'google':
+            raise NotImplemented('Implement functionality first')
+        else:
+            raise NotImplemented('Implement functionality first')
+
+    @override
+    def init_connection(self) -> None:
+        if self.__type == 'yandex':
+            with self.__underlying_client as client:
+                pass
+        elif self.__type == 'google':
+            raise NotImplemented('Implement functionality first')
+        else:
+            raise NotImplemented('Implement functionality first')
+
+    @override
+    def check_path(self, path_to_check: str) -> bool | None:
+        if self.__type == 'yandex':
+            with self.__underlying_client as client:
+                pass
+        elif self.__type == 'google':
+            raise NotImplemented('Implement functionality first')
+        else:
+            raise NotImplemented('Implement functionality first')
+
+    @override
+    def close_connection(self) -> None:
+        if self.__type == 'yandex':
+            self.__underlying_client.close()
+        elif self.__type == 'google':
+            raise NotImplemented('Implement functionality first')
+        else:
+            raise NotImplemented('Implement functionality first')
+
+    @override
+    def rename_book(self, old_name: str, new_name: str) -> None:
+        if self.__type == 'yandex':
+            with self.__underlying_client as client:
+                pass
+        elif self.__type == 'google':
+            raise NotImplemented('Implement functionality first')
+        else:
+            raise NotImplemented('Implement functionality first')
+
+    @override
+    def remove_book(self, book_name: str) -> bool | None:
+        if self.__type == 'yandex':
+            with self.__underlying_client as client:
+                pass
+        elif self.__type == 'google':
+            raise NotImplemented('Implement functionality first')
+        else:
+            raise NotImplemented('Implement functionality first')
+
+    @override
+    def download_book(self, book_name: str):
+        if self.__type == 'yandex':
+            with self.__underlying_client as client:
+                pass
+        elif self.__type == 'google':
+            raise NotImplemented('Implement functionality first')
+        else:
+            raise NotImplemented('Implement functionality first')
+
+    @override
+    def add_new_book(self, file_to_add: str, book: Book_data) -> bool | None:
+        if self.__type == 'yandex':
+            with self.__underlying_client as client:
+                pass
+        elif self.__type == 'google':
+            raise NotImplemented('Implement functionality first')
+        else:
+            raise NotImplemented('Implement functionality first')
+
+    @override
+    def list_all_books(self) -> list[Any] | None:
+        if self.__type == 'yandex':
+            with self.__underlying_client as client:
+                all_files = list(client.listdir(self.home_path))
+                return all_files
+
+        elif self.__type == 'google':
+            raise NotImplemented('Implement functionality first')
+        else:
+            raise NotImplemented('Implement functionality first')
+
+    @override
+    def exist(self, path) -> bool | None:
+        if self.__type == 'yandex':
+            with self.__underlying_client as client:
+                return self.__underlying_client.exists(path)
+
+        elif self.__type == 'google':
+            raise NotImplemented('Implement functionality first')
+        else:
+            raise NotImplemented('Implement functionality first')
+
+    @override
+    def upload_book(self, local_path, client_path):
         pass
 
 
-class Virtual_device(IDevice):
+class Virtual_device(IDevice, IBookable):
     """
-    Virtual device, responsible for Yandex or Google Cloud.
+    Virtual device, responsible for Yandex or Google Cloud or etc.
     Need to create 1 virtual device for Yandex and 1 for Google Cloud.
     """
-    __local_device_logger: BotLogger = None
-    __translator: Translator = None
-    __client: Any
 
-    def __init__(self, logger, virtual_client):
+    __local_device_logger: BotLogger
+    __translator: Translator
+    __client: Client  # temporary thing TODO
+
+    def __init__(self, logger, virtual_client, device_name: str):
         self.__client = virtual_client
         self.__local_device_logger = logger
+        self.device_name = device_name
 
-    def init_device(self) -> None:
+    @override
+    def init_device(self, current_dir: str | Path) -> None:
+        if not self.__client.check_client():
+            self.__local_device_logger.log('Wrong token, cannot init virt device')
+            self.__client.close_connection()
+            self.is_initialized = False
+        else:
+            self.is_initialized = True
+
+    @override
+    def get_device_info(self) -> None:
         pass
 
-    def get_path(self):
-        pass
+    @override
+    def rename_book(self, old_name: str, new_name: str) -> None:
+        path_to_rename: str = self.get_home_dir_path() + '/' + old_name
+        if self.__client.exist(old_name) and IBookable.is_book(new_name):
+            self.__client.rename_book(path_to_rename, new_name)
+        else:
+            self.__local_device_logger.log(f'Book not exist with name {old_name} or new name is not a book')
+            return
 
-    def list_all_files(self):
-        pass
+    @override
+    def list_all_books(self):
+        self.__client.list_all_books()
 
+    @override
     def close_connection(self):
         """
         Delete device entities in case of error or finish
         :return: None
         """
-        pass
+        self.__client.close_connection()
 
+    @override
+    def remove_book(self, book_name: str):
+        path_to_del: str = self.get_home_dir_path() + '/' + book_name
+        if self.__client.exist(path_to_del):
+            self.__client.remove_book(path_to_del)
+        else:
+            self.__local_device_logger.log(f'Book is not exist with name {book_name}')
+            return
+
+    @override
+    def download_book(self, book_name: str):
+        path_to_down: str = self.get_home_dir_path() + '/' + book_name
+        if self.__client.exist(path_to_down):
+            self.__client.download_book(f'{book_name}')
+        else:
+            self.__local_device_logger.log(f'Book not found with name - {book_name}')
+
+    @override
+    def add_new_book(self, file_to_add_name: str, book: Book_data):
+        book_name: str = book.get_book_name()
+        if IBookable.is_book(book_name):
+            path_to_upload: str = self.get_home_dir_path() + '/' + book_name
+            self.__client.upload_book(file_to_add_name, path_to_upload)
+
+        else:
+            self.__local_device_logger.log(f'Given file is not a book with name - {book_name}')
+            return
+
+    @override
     def start_device(self):
         try:
             pass
@@ -411,17 +731,19 @@ class Virtual_device(IDevice):
         try:
             self.__translator = Translator()
         except Exception as e:
-            raise Exception(f'App initialization failed due to {e}.')
+            raise Exception(f'Device initialization failed due to {e}.')
+
+    ###Static methods:
 
     @staticmethod
-    def create_yandex_virt_device(logger: BotLogger):
+    def create_yandex_virt_device(logger: BotLogger) -> IDevice:
         """
         Factory method for creating Yandex based virtual device
         """
-        return Virtual_device(logger=logger, virtual_client=yadisk.Client(token=TOKEN_YANDEX))
+        return Virtual_device(logger=logger, virtual_client=yadisk.Client(token=TOKEN_YANDEX), device_name='Yandex disk')
 
     @staticmethod
-    def create_google_virt_device(logger: BotLogger):
+    def create_google_virt_device(logger: BotLogger) -> IDevice:
         """
         Factory method for creating Google based virtual device
         """
@@ -433,4 +755,4 @@ class Virtual_device(IDevice):
         )
         service = build('drive', 'v3', credentials=credentials)
 
-        return Virtual_device(logger=logger, virtual_client=service)
+        return Virtual_device(logger=logger, virtual_client=service, device_name='Google drive')
