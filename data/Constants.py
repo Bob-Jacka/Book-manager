@@ -53,6 +53,11 @@ VIRTUAL_START_PATH: Final[str] = '/books'  # path from yandex disk root
 PHYSICAL_START_PATH: Final[str] = ''
 
 
+class Book_publishers(str, Enum):
+    OREILLY = ''
+    PACKT = ''
+
+
 class OSType(str, Enum):
     """
     Enum with os identifiers that allowed in utility

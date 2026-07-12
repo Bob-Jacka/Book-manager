@@ -14,8 +14,6 @@ from data.Wrappers import log
 class Kindle_history(Module):
 
     def __init__(self):
-        self.config = None
-        self.local_logger = None
         self.readFile = None
 
     @log
@@ -87,7 +85,7 @@ class Kindle_history(Module):
     def add_book_to_history(self, book: Book_data):
         """
         :param book: where first argument is path to book and second argument is book name
-        :return: None
+        :return: bool result
         """
         if book is not None:
             return self.memorize_module.add(book, 'only-local')

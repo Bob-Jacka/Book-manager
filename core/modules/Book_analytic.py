@@ -17,6 +17,9 @@ class Book_analytic(Module):
     def post_init(self, app_config):
         self.config = app_config
 
+    def get_config(self):
+        return self.config
+
     @log
     def get_average_reading_speed(self, start_date, count_method: Literal['days', 'months', 'year']):
         """

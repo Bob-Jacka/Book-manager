@@ -122,6 +122,9 @@ class IDevice(abc.ABC):
         """
         pass
 
+    def get_device_name(self):
+        return self.device_name
+
     def get_start_path(self):
         """
         Get start for device (I.e home directory where to start working)
@@ -142,7 +145,7 @@ class IClient(abc.ABC):
 
     home_path: str
     """
-    Central directory
+    Central directory of the client
     """
 
     @abc.abstractmethod
@@ -158,7 +161,7 @@ class IClient(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def check_client(self) -> None:
+    def check_client(self) -> bool | None:
         pass
 
     @abc.abstractmethod
@@ -428,7 +431,7 @@ class Physical_device(IDevice, IBookable):
     __book_dir_controller: Book_dir_controller
     __home_directory: str | Path
 
-    def __init__(self, device_path: str | Path, config, device_name: str):
+    def __init__(self, device_path: str | Path, config, device_name: str = ''):
         self.__home_directory = device_path
         self.__init_device_entities()
         self.config = config
@@ -520,8 +523,9 @@ class Client(IBookable, IClient):
     __type: Literal['yandex', 'google']
     __underlying_client: Any
 
-    def __init__(self, client_type: Literal['yandex', 'google'], client_home_path: str):
+    def __init__(self, virtual_client, client_type: Literal['yandex', 'google'], client_home_path: str):
         self.__type = client_type
+        self.__underlying_client = virtual_client
         self.client_home_path = client_home_path
         if self.__type == 'yandex':
             if self.__underlying_client.exists(VIRTUAL_START_PATH):
@@ -536,7 +540,7 @@ class Client(IBookable, IClient):
             raise NotImplemented('Implement functionality first')
 
     @override
-    def check_client(self):
+    def check_client(self) -> bool | None:
         if self.__type == 'yandex':
             with self.__underlying_client as client:
                 pass
@@ -615,10 +619,10 @@ class Client(IBookable, IClient):
             raise NotImplemented('Implement functionality first')
 
     @override
-    def list_all_books(self) -> list[Any] | None:
+    def list_all_books(self) -> list[str] | None:
         if self.__type == 'yandex':
             with self.__underlying_client as client:
-                all_files = list(client.listdir(self.home_path))
+                all_files: list[str] = list(client.listdir(self.home_path))
                 return all_files
 
         elif self.__type == 'google':
@@ -650,10 +654,10 @@ class Virtual_device(IDevice, IBookable):
 
     __local_device_logger: BotLogger
     __translator: Translator
-    __client: Client  # temporary thing TODO
+    __client: Client
 
-    def __init__(self, logger, virtual_client, device_name: str):
-        self.__client = virtual_client
+    def __init__(self, logger, virtual_client, client_type, device_name: str):
+        self.__client = Client(virtual_client, client_type, VIRTUAL_START_PATH)
         self.__local_device_logger = logger
         self.device_name = device_name
 
@@ -740,19 +744,31 @@ class Virtual_device(IDevice, IBookable):
         """
         Factory method for creating Yandex based virtual device
         """
-        return Virtual_device(logger=logger, virtual_client=yadisk.Client(token=TOKEN_YANDEX), device_name='Yandex disk')
+        try:
+            return Virtual_device(logger=logger,
+                                  virtual_client=yadisk.YaDisk(token=TOKEN_YANDEX),
+                                  client_type='yandex',
+                                  device_name='Yandex disk')
+        except Exception as e:
+            print(f'Failed to init Yandex disk device - {e}')
 
     @staticmethod
     def create_google_virt_device(logger: BotLogger) -> IDevice:
         """
         Factory method for creating Google based virtual device
         """
-        SCOPES = ['https://www.googleapis.com/auth/drive']
-        SERVICE_ACCOUNT_FILE = TOKEN_GOOGLE
+        try:
+            SCOPES = ['https://www.googleapis.com/auth/drive']
+            SERVICE_ACCOUNT_FILE = TOKEN_GOOGLE
 
-        credentials = service_account.Credentials.from_service_account_file(
-            SERVICE_ACCOUNT_FILE, scopes=SCOPES
-        )
-        service = build('drive', 'v3', credentials=credentials)
+            credentials = service_account.Credentials.from_service_account_file(
+                SERVICE_ACCOUNT_FILE, scopes=SCOPES
+            )
+            service = build('drive', 'v3', credentials=credentials)
 
-        return Virtual_device(logger=logger, virtual_client=service, device_name='Google drive')
+            return Virtual_device(logger=logger,
+                                  virtual_client=service,
+                                  client_type='google',
+                                  device_name='Google drive')
+        except Exception as e:
+            print(f'Failed to init Google disk device - {e}')
