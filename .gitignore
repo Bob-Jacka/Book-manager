@@ -2,9 +2,8 @@
 test_data
 core/entities/read.txt
 core/other/TODO.txt
-core/entities/browser/WebInterface/secret_key.py
+data/Tokens.py
 *.xml
 *.imi
 .idea
 history
-data/Tokens.py

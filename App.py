@@ -1,11 +1,15 @@
 import os
+import signal
 import sys
+from pathlib import Path
 from typing import Final
 
-from Device import IDevice, Path, Physical_device, Virtual_device
 from core.entities.App_config import App_config
 from core.entities.BootLoader import BootLoader
 from core.entities.BotLogger import BotLogger
+from core.entities.device.IDevice import IDevice
+from core.entities.device.Physical_device import Physical_device
+from core.entities.device.Virtual_device import Virtual_device
 from data.Constants import APP_NAME, STATIC_CONFIG_NAME
 
 os_name: Final[str] = sys.platform
@@ -19,12 +23,13 @@ else:
     app_config.init_config(App_config.path_to_dir_with_app(STATIC_CONFIG_NAME))
 
 # global entities:
-global_logger: Final[BotLogger] = app_config.get_logger()  # global logger instance
-bootloader: Final[BootLoader] = BootLoader(logger=global_logger, app_config=app_config)
+global_logger_ptr: Final[BotLogger] = app_config.get_logger()  # global logger instance
+bootloader: Final[BootLoader] = BootLoader(logger=global_logger_ptr, app_config=app_config)
 
-devices: list[IDevice] = list()
+devices: list[IDevice | None] = list()
 """
-All devices to use in app
+All devices to use in app.
+Accept None as a device in case of initializing error.
 """
 
 
@@ -40,7 +45,7 @@ def get_mount_points() -> None:
     """
     physical_devices_search_path: str = app_config.get_device_search_path()
     try:
-        global_logger.log('Physical devices init begin')
+        global_logger_ptr.log('Physical devices init begin')
         users_media_path = list(os.listdir(Path(physical_devices_search_path)))
         if len(users_media_path) > 0:
             physical_devices_search_path += users_media_path[0]  # get first user devices, change if several
@@ -48,13 +53,13 @@ def get_mount_points() -> None:
         user_devices: Final[list[str]] = os.listdir(physical_devices_search_path)
 
         if len(user_devices) >= 1:
-            global_logger.log('Found devices:')
+            global_logger_ptr.log('Found devices:')
             for dev_num, device in enumerate(user_devices):
                 devices.append(Physical_device(device, app_config))
-                global_logger.log(f'{dev_num} device: {device}')
-        global_logger.log('Physical devices init ended')
+                global_logger_ptr.log(f'{dev_num} device: {device}')
+        global_logger_ptr.log('Physical devices init ended')
     except Exception as e:
-        global_logger.log(f'An exception in initializing physical devices - {e}')
+        global_logger_ptr.log(f'An exception in initializing physical devices - {e}')
 
 
 def init_virtual_devices() -> None:
@@ -63,12 +68,12 @@ def init_virtual_devices() -> None:
     """
     if app_config.is_init_virtual():
         try:
-            global_logger.log('Virtual devices init begin')
-            devices.append(Virtual_device.create_yandex_virt_device(global_logger))
+            global_logger_ptr.log('Virtual devices init begin')
+            devices.append(Virtual_device.create_yandex_virt_device(global_logger_ptr))
             # devices.append(Virtual_device.create_google_virt_device(global_logger))
-            global_logger.log('Virtual devices init end')
+            global_logger_ptr.log('Virtual devices init end')
         except Exception as e:
-            global_logger.log(f'Failed to init virtual devices - {e}')
+            global_logger_ptr.log(f'Failed to init virtual devices - {e}')
 
 
 def gracefully_exit_devices() -> None:
@@ -76,16 +81,37 @@ def gracefully_exit_devices() -> None:
     Close connection on all used devices
     """
     if devices is not None:
-        global_logger.log('Started exit for all devices')
+        global_logger_ptr.log('Started exit for all devices')
         for num, device in enumerate(devices):
-            global_logger.log(f'Device with num {num} and name "{device.get_device_name()}" ending work')
+            global_logger_ptr.log(f'Device with num {num} and name "{device.get_device_name()}" ending work')
             device.close_connection()
-        global_logger.log('Ended exit for all devices')
+        global_logger_ptr.log('Ended exit for all devices')
+    global_logger_ptr.log(f'"{APP_NAME}" utility ending work, bye')
+
+
+def signal_handler(sig, frame):
+    """
+    Handle sig int command
+    :param sig: signal
+    :param frame: function to execute in case of signal
+    :return: None
+    """
+    print('\n')
+    if devices is not None:
+        global_logger_ptr.log('Started exit for all devices')
+        for num, device in enumerate(devices):
+            global_logger_ptr.log(f'Device with num {num} and name "{device.get_device_name()}" ending work')
+            device.close_connection()
+        global_logger_ptr.log('Ended exit for all devices')
+    global_logger_ptr.log(f'"{APP_NAME}" utility ending work, bye')
+    exit(0)
 
 
 # run app
 if __name__ == '__main__':
-    global_logger.log(f'"{APP_NAME}" utility starting')
+    signal.signal(signal.SIGINT, signal_handler)  # if program goes wrong
+
+    global_logger_ptr.log(f'"{APP_NAME}" utility starting')
     get_mount_points()
     init_virtual_devices()
 
@@ -98,11 +124,10 @@ if __name__ == '__main__':
                 device.init_device(Path('/home/kirill/PycharmProjects'))
             bootloader.run_app_browser()
         except Exception as e:
-            global_logger.log(f'All functionality failed with exception - {e}, app exiting')
+            global_logger_ptr.log(f'All functionality failed with exception - {e}, app exiting')
 
     else:
-        global_logger.log('No connected devices to run app')
+        global_logger_ptr.log('No connected devices to run app')
 
-    global_logger.log(f'"{APP_NAME}" utility ending work, bye')
     gracefully_exit_devices()
     exit(0)

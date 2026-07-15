@@ -258,12 +258,12 @@ class App_config(metaclass=SingletonMeta):
     def path_to_stored_books(self):
         return self.path_to_dir_with_app() + STATIC_DIR_NAME_FOR_FAV
 
-    def get_device_search_path(self) -> str | None:
+    def get_device_search_path(self) -> str:
         if self.__run_os == OSType.linux_os:
             return '/run/media/'
         elif self.__run_os == OSType.windows_os:
             return ''
-        return None
+        raise NotImplementedError('Your system is not implemented by utility maintainer')
 
     def get_run_os(self) -> str:
         return self.__run_os
